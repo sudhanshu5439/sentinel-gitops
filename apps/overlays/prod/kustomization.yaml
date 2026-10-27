@@ -8,11 +8,11 @@ resources:
   - pdb.yaml
 images:
   - name: ghcr.io/sudhanshu5439/sentinel-order-api
-    digest: sha256:abf50fb08d2fdc2731258a0bdd565eedc6f66649ca1f0629581cde110f0720a1
+    digest: sha256:5fc04e68f06941fedf4762eae57a28f963d1ffbf17643ce5b648b5b054a2a726
   - name: ghcr.io/sudhanshu5439/sentinel-risk-engine
-    digest: sha256:d634de66ed8d912cdbbf7b135ced76eb9f906a4556f99f22ff7e42c5c07f536f
+    digest: sha256:50ebee09780d3ab09abc30db37b7f4ce12276c8d63cabf6e1ef6739e4fbc26cb
   - name: ghcr.io/sudhanshu5439/sentinel-notifier
-    digest: sha256:959ea2964bcd989431f2e833ea8fc3bcc0465ce10d1715c79ae1808f90b5e2a2
+    digest: sha256:11c5a81aa4fc70f217733a697502328f6f7876898cd3628421f874647a10283e
 patches:
   - path: order-api-ha.yaml
 configurations:
