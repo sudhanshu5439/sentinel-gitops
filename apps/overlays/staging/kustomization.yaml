@@ -20,6 +20,6 @@ configurations:
 # Fault injection for chaos testing. 0 = healthy. `make canary-bad` raises FAULT_ERROR_RATE here.
 configMapGenerator:
 - literals:
-  - FAULT_ERROR_RATE=0
+  - FAULT_ERROR_RATE=0.3
   - FAULT_LATENCY_MS=0
   name: order-api-faults
