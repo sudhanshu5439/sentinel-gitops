@@ -17,8 +17,9 @@ spec:
         fullnameOverride: tempo        # -> service tempo.monitoring:3200 (query), :4317 (OTLP)
         tempo:
           retention: 24h
+          # The chart's port templates expect the Jaeger receiver to exist (setting it to null
+          # breaks rendering, caught by scripts/render-helm.sh), so it stays; only OTLP is used.
           receivers:
-            jaeger: null               # OTLP only
             otlp:
               protocols:
                 grpc:
