@@ -18,6 +18,12 @@ images:
 configurations:
 - kustomize-rollout-config.yaml
 # Fault injection for chaos testing. 0 = healthy. `make canary-bad` raises FAULT_ERROR_RATE here.
+# Generated ConfigMaps get a new name (hash) whenever their content changes. Old ones must NOT be
+# pruned: stable pods of the previous revision still reference them, and a rollback or an aborted
+# canary scales those pods back up. Without this, they fail with CreateContainerConfigError.
+generatorOptions:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
 configMapGenerator:
 - literals:
   - FAULT_ERROR_RATE=0.3
