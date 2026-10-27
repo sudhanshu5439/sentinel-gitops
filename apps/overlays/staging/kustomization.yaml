@@ -6,13 +6,13 @@ resources:
 - namespace.yaml
 - ../../base
 images:
-- digest: sha256:6ec3300e416cf5cf8a705555a747b8a5faf68f2f4b3efba99a6fb8e88911fc89
+- digest: sha256:8e9137284bb89469bae7b25ba412864e5396a6a2082990942912cccec33edf94
   name: ghcr.io/sudhanshu5439/sentinel-notifier
   newName: ghcr.io/sudhanshu5439/sentinel-notifier
-- digest: sha256:465cf14475244111434239e1267a72da0337346217beaa087f3465b2dd72029f
+- digest: sha256:b914dada49c2f3610f9c9480e7740dceb9c69cbb1ce23b5601f3d36c652bd404
   name: ghcr.io/sudhanshu5439/sentinel-order-api
   newName: ghcr.io/sudhanshu5439/sentinel-order-api
-- digest: sha256:84ea41ce399b0ebe0693fbddd9ea09ad69cfd74c751cc39401d97d8b97f880b5
+- digest: sha256:77f698cd3d5e3fc75b938cf4c18b04428952227efb6e478604b39c481ca347f0
   name: ghcr.io/sudhanshu5439/sentinel-risk-engine
   newName: ghcr.io/sudhanshu5439/sentinel-risk-engine
 configurations:
