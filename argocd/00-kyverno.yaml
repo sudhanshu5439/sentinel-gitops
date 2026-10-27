@@ -7,6 +7,9 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-2"
+    # Let the API server compute the diff (dry-run apply), so server-side defaults on Kyverno's
+    # large CRDs don't show up as a fake OutOfSync.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: default
   source:
