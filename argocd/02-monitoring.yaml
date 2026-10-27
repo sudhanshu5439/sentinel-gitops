@@ -24,9 +24,17 @@ spec:
           fullnameOverride: grafana    # -> service grafana.monitoring:80
           persistence:
             enabled: false           # dashboards and datasources are provisioned from Git
+          # Grafana starts one process per backend plugin, and all of them share this
+          # container's memory limit. Loading ~15 unused datasources in 384Mi made start-up
+          # take >160s, so the liveness probe killed it (exit 137). Load only what we use.
+          grafana.ini:
+            plugins:
+              # Unused core datasources (one comma-separated string, no spaces).
+              disable_plugins: "elasticsearch,grafana-postgresql-datasource,grafana-pyroscope-datasource,influxdb,jaeger,mssql,mysql,opentsdb,stackdriver,cloudwatch,graphite,zipkin,grafana-azure-monitor-datasource,parca,grafana-testdata-datasource"
+              preinstall_disabled: true   # no plugin downloads from the internet at boot
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 384Mi }
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 512Mi }
           # Dashboards: any ConfigMap labelled grafana_dashboard=1 (see platform/observability).
           additionalDataSources:
             - name: Loki
