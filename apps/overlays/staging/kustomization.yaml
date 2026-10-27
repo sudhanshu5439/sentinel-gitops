@@ -3,15 +3,20 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: sentinel-staging
 resources:
-- namespace.yaml
-- ../../base
+  - namespace.yaml
+  - ../../base
 images:
-- digest: sha256:11c5a81aa4fc70f217733a697502328f6f7876898cd3628421f874647a10283e
-  name: ghcr.io/sudhanshu5439/sentinel-notifier
-  newName: ghcr.io/sudhanshu5439/sentinel-notifier
-- digest: sha256:5fc04e68f06941fedf4762eae57a28f963d1ffbf17643ce5b648b5b054a2a726
-  name: ghcr.io/sudhanshu5439/sentinel-order-api
-  newName: ghcr.io/sudhanshu5439/sentinel-order-api
-- digest: sha256:50ebee09780d3ab09abc30db37b7f4ce12276c8d63cabf6e1ef6739e4fbc26cb
-  name: ghcr.io/sudhanshu5439/sentinel-risk-engine
-  newName: ghcr.io/sudhanshu5439/sentinel-risk-engine
+  - name: ghcr.io/sudhanshu5439/sentinel-order-api
+    digest: sha256:5fc04e68f06941fedf4762eae57a28f963d1ffbf17643ce5b648b5b054a2a726
+  - name: ghcr.io/sudhanshu5439/sentinel-risk-engine
+    digest: sha256:50ebee09780d3ab09abc30db37b7f4ce12276c8d63cabf6e1ef6739e4fbc26cb
+  - name: ghcr.io/sudhanshu5439/sentinel-notifier
+    digest: sha256:11c5a81aa4fc70f217733a697502328f6f7876898cd3628421f874647a10283e
+configurations:
+  - kustomize-rollout-config.yaml
+# Fault injection for chaos testing. 0 = healthy. `make canary-bad` raises FAULT_ERROR_RATE here.
+configMapGenerator:
+  - name: order-api-faults
+    literals:
+      - FAULT_ERROR_RATE=0
+      - FAULT_LATENCY_MS=0

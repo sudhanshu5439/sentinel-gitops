@@ -1,0 +1,56 @@
+# Prometheus (via the Prometheus Operator), kept lean for now: canary analysis needs metrics.
+# Grafana, Alertmanager, Loki and Tempo arrive in the observability step.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.14.0
+    helm:
+      valuesObject:
+        fullnameOverride: kps          # -> service kps-prometheus.monitoring:9090
+        defaultRules:
+          create: false                # SLO rules come later; saves CPU/RAM now
+        grafana:
+          enabled: false
+        alertmanager:
+          enabled: false
+        nodeExporter:
+          enabled: false
+        kubeEtcd: { enabled: false }
+        kubeControllerManager: { enabled: false }
+        kubeScheduler: { enabled: false }
+        kubeProxy: { enabled: false }
+        prometheusOperator:
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+        prometheus:
+          prometheusSpec:
+            retention: 2d
+            scrapeInterval: 15s
+            # Pick up every PodMonitor/ServiceMonitor/rule, not only ones labelled for this release.
+            podMonitorSelectorNilUsesHelmValues: false
+            serviceMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            resources:
+              requests: { cpu: 100m, memory: 256Mi }
+              limits: { memory: 1Gi }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

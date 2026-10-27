@@ -1,0 +1,13 @@
+# Teaches kustomize that a Rollout references ConfigMaps (like a Deployment does), so the
+# generated ConfigMap's hash suffix is written into the Rollout. A changed value then means a
+# changed pod template, which starts a new canary.
+nameReference:
+  - kind: ConfigMap
+    version: v1
+    fieldSpecs:
+      - path: spec/template/spec/containers/envFrom/configMapRef/name
+        kind: Rollout
+      - path: spec/template/spec/containers/env/valueFrom/configMapKeyRef/name
+        kind: Rollout
+      - path: spec/template/spec/volumes/configMap/name
+        kind: Rollout

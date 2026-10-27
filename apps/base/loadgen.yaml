@@ -1,0 +1,49 @@
+# Steady synthetic traffic (5 orders/s) so canary analysis always has data to judge.
+# Uses the signed order-api image, so it passes the same admission policies.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  labels:
+    app: loadgen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen
+  template:
+    metadata:
+      labels:
+        app: loadgen
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: ghcr.io/sudhanshu5439/sentinel-order-api
+          command: ["python", "-m", "order_api.loadgen"]
+          env:
+            - name: TARGET_URL
+              value: http://order-api:8000
+            - name: RPS
+              value: "5"
+          readinessProbe:
+            exec:
+              command: ["test", "-f", "/tmp/ready"]
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

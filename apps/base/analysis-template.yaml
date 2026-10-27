@@ -1,0 +1,51 @@
+# How a canary is judged. Every 30 s, Prometheus is asked three questions about the CANARY pods
+# only (selected by their pod-template hash). One failure is tolerated; a second aborts.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: order-api-canary-health
+spec:
+  args:
+    - name: namespace
+    - name: canary-hash
+  metrics:
+    # 1. Enough evidence: a canary that received no traffic has proven nothing.
+    - name: canary-traffic
+      interval: 30s
+      initialDelay: 30s
+      failureLimit: 1
+      successCondition: len(result) > 0 && result[0] >= 10
+      provider:
+        prometheus:
+          address: http://kps-prometheus.monitoring.svc:9090
+          query: |
+            sum(increase(http_requests_total{namespace="{{args.namespace}}",
+              rollouts_pod_template_hash="{{args.canary-hash}}", handler="/orders"}[1m]))
+    # 2. Error rate: share of order requests answered with 5xx must stay at or below 5%.
+    - name: error-rate
+      interval: 30s
+      initialDelay: 30s
+      failureLimit: 1
+      successCondition: len(result) == 0 || isNaN(result[0]) || result[0] <= 0.05
+      provider:
+        prometheus:
+          address: http://kps-prometheus.monitoring.svc:9090
+          query: |
+            sum(rate(http_requests_total{namespace="{{args.namespace}}",
+              rollouts_pod_template_hash="{{args.canary-hash}}", handler="/orders", status="5xx"}[1m]))
+            /
+            sum(rate(http_requests_total{namespace="{{args.namespace}}",
+              rollouts_pod_template_hash="{{args.canary-hash}}", handler="/orders"}[1m]))
+    # 3. Latency: 95th percentile of order requests must stay at or below 300 ms.
+    - name: latency-p95
+      interval: 30s
+      initialDelay: 30s
+      failureLimit: 1
+      successCondition: len(result) == 0 || isNaN(result[0]) || result[0] <= 0.3
+      provider:
+        prometheus:
+          address: http://kps-prometheus.monitoring.svc:9090
+          query: |
+            histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{
+              namespace="{{args.namespace}}", rollouts_pod_template_hash="{{args.canary-hash}}",
+              handler="/orders"}[1m])))

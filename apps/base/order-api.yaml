@@ -10,14 +10,44 @@ spec:
       port: 8000
       targetPort: http
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
   name: order-api
   labels:
     app: order-api
 spec:
-  replicas: 1
+  # 4 replicas so canary steps map to real traffic shares without a service mesh:
+  # 1 canary pod of 4 = 25% of requests, 2 of 4 = 50%, 3 of 4 = 75%.
+  replicas: 4
+  revisionHistoryLimit: 3
+  strategy:
+    canary:
+      canaryMetadata:
+        labels: { role: canary }
+      stableMetadata:
+        labels: { role: stable }
+      # Runs in the background from the first pause until the rollout finishes.
+      # Any failed measurement aborts the rollout and scales the canary back to zero.
+      analysis:
+        templates:
+          - templateName: order-api-canary-health
+        startingStep: 1
+        args:
+          - name: namespace
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: canary-hash
+            valueFrom:
+              podTemplateHashValue: Latest
+      steps:
+        - setWeight: 25
+        - pause: { duration: 2m }
+        - setWeight: 50
+        - pause: { duration: 2m }
+        - setWeight: 75
+        - pause: { duration: 1m }
   selector:
     matchLabels:
       app: order-api
@@ -40,6 +70,11 @@ spec:
           ports:
             - name: http
               containerPort: 8000
+          # Fault switches (error rate, latency), set per environment in Git. Changing them is how
+          # the chaos scenarios simulate a bad release.
+          envFrom:
+            - configMapRef:
+                name: order-api-faults
           env:
             - name: SERVICE_VERSION
               value: dev

@@ -7,7 +7,7 @@ watches this repo and keeps the cluster identical to it. Nobody runs `kubectl ap
 
 ```
 bootstrap/root.yaml        the only object applied manually ("app of apps")
-argocd/                    Argo CD Applications: Kyverno, policies, staging, prod
+argocd/                    Argo CD Applications: Kyverno, Prometheus, Argo Rollouts, policies, staging, prod
 platform/policies/         Kyverno admission policies
 apps/base/                 the Sentinel services, environment-agnostic
 apps/overlays/staging/     auto-promoted by CI on every merge to main
@@ -26,6 +26,11 @@ scripts/validate.sh        render + schema check + policy tests (also run in CI)
 5. In both namespaces, Kyverno admits a pod only if every Sentinel image is referenced by digest
    and signed by `supply-chain.yml` on `main`, comes from an allowed registry, and declares
    resources and a readiness probe.
+
+In each environment, order-api is an Argo Rollouts **canary**: 25% → 50% → 75% → 100% of
+pods, while Prometheus is queried every 30 s about the canary pods only (enough traffic, error
+rate ≤ 5%, p95 latency ≤ 300 ms). A failed check aborts the rollout and the stable version keeps
+serving. A `loadgen` Deployment provides steady traffic so there is always evidence to judge.
 
 Rolling back = reverting a commit in this repo.
 

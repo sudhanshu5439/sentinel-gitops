@@ -15,3 +15,11 @@ images:
     digest: sha256:959ea2964bcd989431f2e833ea8fc3bcc0465ce10d1715c79ae1808f90b5e2a2
 patches:
   - path: order-api-ha.yaml
+configurations:
+  - kustomize-rollout-config.yaml
+# Fault injection for chaos testing. 0 = healthy. `make canary-bad` raises FAULT_ERROR_RATE here.
+configMapGenerator:
+  - name: order-api-faults
+    literals:
+      - FAULT_ERROR_RATE=0
+      - FAULT_LATENCY_MS=0

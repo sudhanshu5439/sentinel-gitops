@@ -1,0 +1,17 @@
+# Tells Prometheus to scrape every Sentinel service pod. The pod-template-hash label is copied
+# onto each series, so canary and stable pods can be compared during a rollout.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: sentinel-apps
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchExpressions:
+      - { key: app, operator: In, values: [order-api, risk-engine, notifier] }
+  podTargetLabels: [app, role, rollouts-pod-template-hash]
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

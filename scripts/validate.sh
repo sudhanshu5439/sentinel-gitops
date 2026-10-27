@@ -13,7 +13,11 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for env in staging prod; do
   echo "==> render + schema check: $env"
   kustomize build "apps/overlays/$env" > "$tmp/$env.yaml"
-  kubeconform -strict -summary "$tmp/$env.yaml"
+  # Built-in kinds from the Kubernetes schemas; Rollout, AnalysisTemplate and PodMonitor from the
+  # community CRD catalog.
+  kubeconform -strict -summary -schema-location default \
+    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+    "$tmp/$env.yaml"
   echo "==> policies must pass: $env"
   sed "s/sentinel-prod/sentinel-$env/" "$VALUES" > "$tmp/values-$env.yaml"
   # shellcheck disable=SC2086
