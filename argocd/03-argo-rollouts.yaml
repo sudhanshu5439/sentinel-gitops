@@ -16,6 +16,10 @@ spec:
       valuesObject:
         controller:
           replicas: 1
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: true    # rollout phase, analysis results -> Prometheus
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 256Mi }

@@ -78,6 +78,9 @@ spec:
           env:
             - name: SERVICE_VERSION
               value: dev
+            # Traces go to Alloy (OTLP over HTTP), which forwards them to Tempo.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://alloy.monitoring.svc:4318
             - name: RISK_ENGINE_URL
               value: http://risk-engine:8080
             - name: REDIS_URL
