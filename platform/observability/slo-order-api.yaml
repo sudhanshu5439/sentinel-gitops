@@ -1,0 +1,97 @@
+# Service level objectives for order-api's POST /orders, per environment (namespace):
+#   availability: 99.5% of orders succeed (no 5xx)          -> error budget 0.5%
+#   latency:      99% of orders complete in <= 250 ms       -> error budget 1%
+# Alerts use multi-window, multi-burn-rate rules (Google SRE workbook, ch. 5): they fire when the
+# budget is being spent fast in BOTH a long and a short window, so they catch real incidents
+# quickly without paging on short blips, and they stop as soon as things recover.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: slo-order-api
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  groups:
+    - name: slo-order-api-sli
+      interval: 30s
+      rules:
+        # Error ratio = share of POST /orders answered with 5xx, over several windows.
+        - record: sentinel:order_api_errors:ratio_rate5m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[5m]))
+            / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[5m]))
+        - record: sentinel:order_api_errors:ratio_rate30m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[30m]))
+            / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[30m]))
+        - record: sentinel:order_api_errors:ratio_rate1h
+          expr: |
+            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[1h]))
+            / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[1h]))
+        - record: sentinel:order_api_errors:ratio_rate6h
+          expr: |
+            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[6h]))
+            / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[6h]))
+        # Slow ratio = share of POST /orders slower than 250 ms (histogram bucket le="0.25").
+        - record: sentinel:order_api_slow:ratio_rate5m
+          expr: |
+            1 - sum by (namespace) (rate(http_request_duration_seconds_bucket{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", le="0.25"}[5m]))
+            / sum by (namespace) (rate(http_request_duration_seconds_count{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[5m]))
+        - record: sentinel:order_api_slow:ratio_rate30m
+          expr: |
+            1 - sum by (namespace) (rate(http_request_duration_seconds_bucket{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", le="0.25"}[30m]))
+            / sum by (namespace) (rate(http_request_duration_seconds_count{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[30m]))
+        - record: sentinel:order_api_slow:ratio_rate1h
+          expr: |
+            1 - sum by (namespace) (rate(http_request_duration_seconds_bucket{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", le="0.25"}[1h]))
+            / sum by (namespace) (rate(http_request_duration_seconds_count{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[1h]))
+        - record: sentinel:order_api_slow:ratio_rate6h
+          expr: |
+            1 - sum by (namespace) (rate(http_request_duration_seconds_bucket{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", le="0.25"}[6h]))
+            / sum by (namespace) (rate(http_request_duration_seconds_count{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[6h]))
+
+    - name: slo-order-api-alerts
+      rules:
+        # Burn rate 14.4 = the whole 30-day budget gone in ~2 days. Page.
+        - alert: OrderApiAvailabilityBudgetBurnFast
+          expr: |
+            sentinel:order_api_errors:ratio_rate1h > (14.4 * 0.005)
+            and sentinel:order_api_errors:ratio_rate5m > (14.4 * 0.005)
+          for: 2m
+          labels: { severity: critical, slo: order-api-availability, service: order-api }
+          annotations:
+            summary: "order-api is burning its availability error budget fast in {{ $labels.namespace }}"
+            description: "{{ $value | humanizePercentage }} of orders failed over the last hour (SLO: 99.5% succeed)."
+            runbook_url: https://github.com/sudhanshu5439/sentinel/blob/main/docs/runbooks/order-api-slo.md
+        # Burn rate 6 = budget gone in ~5 days. Investigate soon.
+        - alert: OrderApiAvailabilityBudgetBurnSlow
+          expr: |
+            sentinel:order_api_errors:ratio_rate6h > (6 * 0.005)
+            and sentinel:order_api_errors:ratio_rate30m > (6 * 0.005)
+          for: 15m
+          labels: { severity: warning, slo: order-api-availability, service: order-api }
+          annotations:
+            summary: "order-api error budget is steadily burning in {{ $labels.namespace }}"
+            description: "{{ $value | humanizePercentage }} of orders failed over the last 6 hours (SLO: 99.5% succeed)."
+            runbook_url: https://github.com/sudhanshu5439/sentinel/blob/main/docs/runbooks/order-api-slo.md
+        - alert: OrderApiLatencyBudgetBurnFast
+          expr: |
+            sentinel:order_api_slow:ratio_rate1h > (14.4 * 0.01)
+            and sentinel:order_api_slow:ratio_rate5m > (14.4 * 0.01)
+          for: 2m
+          labels: { severity: critical, slo: order-api-latency, service: order-api }
+          annotations:
+            summary: "order-api is too slow in {{ $labels.namespace }}"
+            description: "{{ $value | humanizePercentage }} of orders took longer than 250 ms over the last hour (SLO: 99% within 250 ms)."
+            runbook_url: https://github.com/sudhanshu5439/sentinel/blob/main/docs/runbooks/order-api-slo.md
+        - alert: OrderApiLatencyBudgetBurnSlow
+          expr: |
+            sentinel:order_api_slow:ratio_rate6h > (6 * 0.01)
+            and sentinel:order_api_slow:ratio_rate30m > (6 * 0.01)
+          for: 15m
+          labels: { severity: warning, slo: order-api-latency, service: order-api }
+          annotations:
+            summary: "order-api latency budget is steadily burning in {{ $labels.namespace }}"
+            description: "{{ $value | humanizePercentage }} of orders took longer than 250 ms over the last 6 hours."
+            runbook_url: https://github.com/sudhanshu5439/sentinel/blob/main/docs/runbooks/order-api-slo.md

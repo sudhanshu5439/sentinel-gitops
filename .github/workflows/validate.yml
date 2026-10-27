@@ -16,13 +16,20 @@ jobs:
     env:
       KUSTOMIZE_VERSION: v5.4.3
       KYVERNO_VERSION: v1.19.2
+      PROMETHEUS_VERSION: v3.15.1
     steps:
       - uses: actions/checkout@v5
-      - name: Install kustomize, kubeconform, kyverno CLI
+      - name: Install kustomize, kubeconform, kyverno CLI, promtool
         run: |
           mkdir -p "$HOME/bin" && cd "$HOME/bin"
           curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz
           curl -fsSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
           curl -fsSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz" | tar xz kyverno
+          curl -fsSL "https://github.com/prometheus/prometheus/releases/download/${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION#v}.linux-amd64.tar.gz" \
+            | tar xz --strip-components=1 "prometheus-${PROMETHEUS_VERSION#v}.linux-amd64/promtool"
           echo "$HOME/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --quiet --break-system-packages pyyaml
       - run: ./scripts/validate.sh
+      # Helm is preinstalled on GitHub's Ubuntu runners.
+      - name: Render every Helm-based app with its real values
+        run: ./scripts/render-helm.sh

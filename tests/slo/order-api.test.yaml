@@ -1,0 +1,58 @@
+# Unit tests for the SLO alerts (run by scripts/validate.sh with `promtool test rules`).
+# Synthetic traffic: 100 orders/min. Do the alerts fire for a bad release, and stay quiet when healthy?
+rule_files:
+  - rules.yaml   # extracted from platform/observability/slo-order-api.yaml by validate.sh
+evaluation_interval: 1m
+tests:
+  - name: 30% errors in staging pages within minutes; prod (healthy) stays quiet
+    interval: 1m
+    input_series:
+      - series: 'http_requests_total{namespace="sentinel-staging", handler="/orders", method="POST", status="2xx"}'
+        values: '0+70x90'
+      - series: 'http_requests_total{namespace="sentinel-staging", handler="/orders", method="POST", status="5xx"}'
+        values: '0+30x90'
+      - series: 'http_requests_total{namespace="sentinel-prod", handler="/orders", method="POST", status="2xx"}'
+        values: '0+100x90'
+      - series: 'http_requests_total{namespace="sentinel-prod", handler="/orders", method="POST", status="5xx"}'
+        values: '0+0x90'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: OrderApiAvailabilityBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              slo: order-api-availability
+              service: order-api
+              namespace: sentinel-staging
+            exp_annotations:
+              summary: "order-api is burning its availability error budget fast in sentinel-staging"
+              description: "30% of orders failed over the last hour (SLO: 99.5% succeed)."
+              runbook_url: https://github.com/sudhanshu5439/sentinel/blob/main/docs/runbooks/order-api-slo.md
+
+  - name: a brief 1-minute blip does not page
+    interval: 1m
+    input_series:
+      - series: 'http_requests_total{namespace="sentinel-prod", handler="/orders", method="POST", status="2xx"}'
+        values: '0+100x60'
+      # 0 errors, then 50 errors in one single minute (minute 30), then 0 again.
+      - series: 'http_requests_total{namespace="sentinel-prod", handler="/orders", method="POST", status="5xx"}'
+        values: '0x30 50 50x29'
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: OrderApiAvailabilityBudgetBurnFast
+        exp_alerts: []
+
+  - name: healthy service never alerts
+    interval: 1m
+    input_series:
+      - series: 'http_requests_total{namespace="sentinel-prod", handler="/orders", method="POST", status="2xx"}'
+        values: '0+100x90'
+      - series: 'http_requests_total{namespace="sentinel-prod", handler="/orders", method="POST", status="5xx"}'
+        values: '0x90'
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: OrderApiAvailabilityBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: OrderApiAvailabilityBudgetBurnSlow
+        exp_alerts: []

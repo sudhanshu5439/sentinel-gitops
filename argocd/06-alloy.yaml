@@ -1,0 +1,131 @@
+# Grafana Alloy: one agent (an OpenTelemetry Collector distribution) for two jobs:
+#   1. tails pod logs through the Kubernetes API and ships them to Loki
+#   2. receives OTLP traces from the apps and forwards them to Tempo
+# Runs as a single Deployment: tailing via the API needs no host mounts or DaemonSet.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    targetRevision: 1.14.3
+    helm:
+      valuesObject:
+        fullnameOverride: alloy        # -> service alloy.monitoring:4317/4318 (OTLP)
+        controller:
+          type: deployment
+          replicas: 1
+        alloy:
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          extraPorts:
+            - name: otlp-grpc
+              port: 4317
+              targetPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              port: 4318
+              targetPort: 4318
+              protocol: TCP
+          configMap:
+            content: |
+              // ---- Logs: Sentinel namespaces -> Loki --------------------------------------
+              discovery.kubernetes "pods" {
+                role = "pod"
+              }
+
+              discovery.relabel "pods" {
+                targets = discovery.kubernetes.pods.targets
+                rule {
+                  source_labels = ["__meta_kubernetes_namespace"]
+                  regex         = "sentinel.*|argo-rollouts"
+                  action        = "keep"
+                }
+                rule {
+                  source_labels = ["__meta_kubernetes_namespace"]
+                  target_label  = "namespace"
+                }
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_name"]
+                  target_label  = "pod"
+                }
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_container_name"]
+                  target_label  = "container"
+                }
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_label_app"]
+                  target_label  = "app"
+                }
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_label_role"]
+                  target_label  = "role"
+                }
+              }
+
+              loki.source.kubernetes "pods" {
+                targets    = discovery.relabel.pods.output
+                forward_to = [loki.process.json.receiver]
+              }
+
+              // Our services log JSON: lift "level" into a label (low cardinality).
+              // trace_id stays in the line; Grafana turns it into a link to Tempo.
+              loki.process "json" {
+                stage.json {
+                  expressions = { level = "level" }
+                }
+                stage.labels {
+                  values = { level = "" }
+                }
+                forward_to = [loki.write.default.receiver]
+              }
+
+              loki.write "default" {
+                endpoint {
+                  url = "http://loki-gateway.monitoring.svc/loki/api/v1/push"
+                }
+              }
+
+              // ---- Traces: OTLP from the apps -> Tempo -------------------------------------
+              otelcol.receiver.otlp "apps" {
+                grpc {
+                  endpoint = "0.0.0.0:4317"
+                }
+                http {
+                  endpoint = "0.0.0.0:4318"
+                }
+                output {
+                  traces = [otelcol.processor.batch.default.input]
+                }
+              }
+
+              otelcol.processor.batch "default" {
+                output {
+                  traces = [otelcol.exporter.otlp.tempo.input]
+                }
+              }
+
+              otelcol.exporter.otlp "tempo" {
+                client {
+                  endpoint = "tempo.monitoring.svc:4317"
+                  tls {
+                    insecure = true
+                  }
+                }
+              }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

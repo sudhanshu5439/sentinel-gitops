@@ -1,5 +1,5 @@
-# Prometheus (via the Prometheus Operator), kept lean for now: canary analysis needs metrics.
-# Grafana, Alertmanager, Loki and Tempo arrive in the observability step.
+# Metrics and alerting: Prometheus (via the Prometheus Operator), Alertmanager and Grafana.
+# Grafana is wired to Loki (logs) and Tempo (traces) so you can jump between all three.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -20,9 +20,46 @@ spec:
         defaultRules:
           create: false                # SLO rules come later; saves CPU/RAM now
         grafana:
-          enabled: false
+          enabled: true
+          fullnameOverride: grafana    # -> service grafana.monitoring:80
+          persistence:
+            enabled: false           # dashboards and datasources are provisioned from Git
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          # Dashboards: any ConfigMap labelled grafana_dashboard=1 (see platform/observability).
+          additionalDataSources:
+            - name: Loki
+              uid: loki
+              type: loki
+              url: http://loki-gateway.monitoring.svc
+              jsonData:
+                # Click a trace_id in a log line to open the trace in Tempo.
+                derivedFields:
+                  - name: TraceID
+                    datasourceUid: tempo
+                    matcherRegex: '"trace_id": ?"(\w+)"'
+                    url: "$${__value.raw}"
+            - name: Tempo
+              uid: tempo
+              type: tempo
+              url: http://tempo.monitoring.svc:3200
+              jsonData:
+                # From a span, open the logs of the same trace in Loki.
+                tracesToLogsV2:
+                  datasourceUid: loki
+                  filterByTraceID: true
+                  spanStartTimeShift: "-5m"
+                  spanEndTimeShift: "5m"
+                serviceMap:
+                  datasourceUid: prometheus
         alertmanager:
-          enabled: false
+          enabled: true
+          alertmanagerSpec:
+            resources:
+              requests: { cpu: 10m, memory: 32Mi }
+              limits: { memory: 128Mi }
+          # Routing stays on the built-in 'null' receiver for now; the AIOps step adds a webhook.
         nodeExporter:
           enabled: false
         kubeEtcd: { enabled: false }
