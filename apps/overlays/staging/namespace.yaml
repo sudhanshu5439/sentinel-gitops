@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sentinel-staging
+  labels:
+    sentinel.io/environment: staging
+    # Kyverno policies (platform/policies) apply only to namespaces with this label.
+    sentinel.io/require-signed-images: "true"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted

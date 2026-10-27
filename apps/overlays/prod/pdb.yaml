@@ -1,0 +1,10 @@
+# Voluntary disruptions (node drains, upgrades) must leave at least one order-api pod running.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: order-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: order-api

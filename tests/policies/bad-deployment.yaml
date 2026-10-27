@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sentinel-prod
+  labels:
+    sentinel.io/require-signed-images: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rogue
+  namespace: sentinel-prod
+spec:
+  selector: {matchLabels: {app: rogue}}
+  template:
+    metadata: {labels: {app: rogue}}
+    spec:
+      containers:
+        - name: web
+          image: nginx:latest

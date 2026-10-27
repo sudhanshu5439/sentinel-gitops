@@ -1,0 +1,14 @@
+# The Sentinel demo apps, environment-agnostic. Overlays set the namespace and the exact image
+# digests; the CI pipeline only ever edits those digests.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - postgres.yaml
+  - redis.yaml
+  - risk-engine.yaml
+  - order-api.yaml
+  - notifier.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: sentinel
+    includeSelectors: false

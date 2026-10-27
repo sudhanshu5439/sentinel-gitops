@@ -1,0 +1,14 @@
+# STAGING: updated automatically by CI on every merge to main.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sentinel-staging
+resources:
+  - namespace.yaml
+  - ../../base
+images:
+  - name: ghcr.io/sudhanshu5439/sentinel-order-api
+    digest: sha256:abf50fb08d2fdc2731258a0bdd565eedc6f66649ca1f0629581cde110f0720a1
+  - name: ghcr.io/sudhanshu5439/sentinel-risk-engine
+    digest: sha256:d634de66ed8d912cdbbf7b135ced76eb9f906a4556f99f22ff7e42c5c07f536f
+  - name: ghcr.io/sudhanshu5439/sentinel-notifier
+    digest: sha256:959ea2964bcd989431f2e833ea8fc3bcc0465ce10d1715c79ae1808f90b5e2a2

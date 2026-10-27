@@ -1,0 +1,49 @@
+# Only images signed by Sentinel's own supply-chain workflow, on main, may run in
+# signed-image namespaces. The signature is keyless: Kyverno checks the Sigstore certificate
+# identity (which workflow, which repo, which branch) and the Rekor transparency log.
+apiVersion: policies.kyverno.io/v1beta1
+kind: ImageValidatingPolicy
+metadata:
+  name: verify-sentinel-images
+  annotations:
+    policies.kyverno.io/description: >-
+      Sentinel images must be referenced by digest and carry a cosign keyless signature
+      from .github/workflows/supply-chain.yml on the main branch of sudhanshu5439/sentinel.
+spec:
+  validationActions: [Deny]
+  failurePolicy: Fail          # fail closed: if verification can't run, the pod is not admitted
+  webhookConfiguration:
+    timeoutSeconds: 30
+  autogen:
+    podControllers:
+      controllers: [deployments, statefulsets]
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        sentinel.io/require-signed-images: "true"
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  matchImageReferences:
+    - glob: ghcr.io/sudhanshu5439/sentinel-*
+  validationConfigurations:
+    required: true       # every matching image must be verified
+    verifyDigest: true   # and must be referenced by digest, never by a mutable tag
+    mutateDigest: false
+  attestors:
+    - name: sentinelPipeline
+      cosign:
+        keyless:
+          identities:
+            - issuer: https://token.actions.githubusercontent.com
+              subject: https://github.com/sudhanshu5439/sentinel/.github/workflows/supply-chain.yml@refs/heads/main
+        ctlog:
+          url: https://rekor.sigstore.dev
+  validations:
+    - expression: >-
+        images.containers.map(image, verifyImageSignatures(image, [attestors.sentinelPipeline])).all(e, e > 0)
+      message: >-
+        image is not signed by the Sentinel supply-chain workflow on main
+        (build it through CI instead of pushing it by hand)

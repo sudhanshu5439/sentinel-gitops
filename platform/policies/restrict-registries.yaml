@@ -1,0 +1,32 @@
+# Signed-image namespaces may only run Sentinel's own images plus the two pinned
+# third-party images it depends on. Anything else (Docker Hub, random registries) is denied.
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
+metadata:
+  name: restrict-registries
+spec:
+  validationActions: [Deny]
+  autogen:
+    podControllers:
+      controllers: [deployments, statefulsets]
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        sentinel.io/require-signed-images: "true"
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: >-
+        object.spec.containers + object.spec.?initContainers.orValue([])
+  validations:
+    - expression: >-
+        variables.allContainers.all(c,
+          c.image.startsWith('ghcr.io/sudhanshu5439/sentinel-') ||
+          c.image.startsWith('postgres:16') ||
+          c.image.startsWith('redis:7'))
+      messageExpression: >-
+        'image not allowed in this namespace: ' + variables.allContainers.map(c, c.image).join(', ')

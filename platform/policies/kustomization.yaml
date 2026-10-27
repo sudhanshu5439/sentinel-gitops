@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Policies are created after Kyverno's CRDs exist (see the sync waves in argocd/).
+commonAnnotations:
+  argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+resources:
+  - verify-sentinel-images.yaml
+  - restrict-registries.yaml
+  - require-resources-and-probes.yaml

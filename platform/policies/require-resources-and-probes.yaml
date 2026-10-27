@@ -1,0 +1,31 @@
+# Every container must declare what it needs (requests), what it may use at most (memory limit)
+# and how Kubernetes can tell it's ready. Without these, autoscaling, scheduling and the
+# canary analysis later on can't work reliably.
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
+metadata:
+  name: require-resources-and-probes
+spec:
+  validationActions: [Deny]
+  autogen:
+    podControllers:
+      controllers: [deployments, statefulsets]
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        sentinel.io/require-signed-images: "true"
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  validations:
+    - expression: >-
+        object.spec.containers.all(c,
+          has(c.resources) && has(c.resources.requests) &&
+          'cpu' in c.resources.requests && 'memory' in c.resources.requests &&
+          has(c.resources.limits) && 'memory' in c.resources.limits)
+      message: every container needs CPU/memory requests and a memory limit
+    - expression: >-
+        object.spec.containers.all(c, has(c.readinessProbe))
+      message: every container needs a readiness probe

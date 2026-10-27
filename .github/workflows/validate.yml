@@ -1,0 +1,28 @@
+# Every change to the desired state (including CI's own promotion commits and PRs) is rendered,
+# schema-checked and tested against the admission policies before Argo CD can sync it.
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      KUSTOMIZE_VERSION: v5.4.3
+      KYVERNO_VERSION: v1.19.2
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install kustomize, kubeconform, kyverno CLI
+        run: |
+          mkdir -p "$HOME/bin" && cd "$HOME/bin"
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz
+          curl -fsSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          curl -fsSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz" | tar xz kyverno
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - run: ./scripts/validate.sh
