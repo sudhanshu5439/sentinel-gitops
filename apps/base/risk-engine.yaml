@@ -47,18 +47,29 @@ spec:
               value: "1000000"
             - name: MAX_QUANTITY
               value: "10000"
+          # Probe budget for a CPU-starved laptop (the default 1s timeout restarted healthy pods):
+          # startup gives a slow boot up to 60s, readiness only pulls traffic, and
+          # liveness (the one that restarts) needs ~60s of consecutive failures.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /readyz
               port: http
             periodSeconds: 5
+            timeoutSeconds: 2
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
           resources:
             requests: { cpu: 20m, memory: 32Mi }
             limits: { cpu: 250m, memory: 64Mi }

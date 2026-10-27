@@ -48,15 +48,26 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+          # A restarted database replays WAL and drops every client connection, so
+          # liveness must be far more patient than readiness. exec probes also pay
+          # process start-up cost, which is slow when the node's CPU is saturated.
+          startupProbe:
+            exec:
+              command: ["pg_isready", "-U", "sentinel", "-d", "sentinel"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 24
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "sentinel", "-d", "sentinel"]
             periodSeconds: 5
+            timeoutSeconds: 5
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "sentinel", "-d", "sentinel"]
-            initialDelaySeconds: 20
-            periodSeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
           resources:
             requests: { cpu: 50m, memory: 128Mi }
             limits: { cpu: 500m, memory: 384Mi }
