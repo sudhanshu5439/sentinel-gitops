@@ -3,23 +3,26 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: sentinel-prod
 resources:
-  - namespace.yaml
-  - ../../base
-  - pdb.yaml
+- namespace.yaml
+- ../../base
+- pdb.yaml
 images:
-  - name: ghcr.io/sudhanshu5439/sentinel-order-api
-    digest: sha256:abf50fb08d2fdc2731258a0bdd565eedc6f66649ca1f0629581cde110f0720a1
-  - name: ghcr.io/sudhanshu5439/sentinel-risk-engine
-    digest: sha256:d634de66ed8d912cdbbf7b135ced76eb9f906a4556f99f22ff7e42c5c07f536f
-  - name: ghcr.io/sudhanshu5439/sentinel-notifier
-    digest: sha256:959ea2964bcd989431f2e833ea8fc3bcc0465ce10d1715c79ae1808f90b5e2a2
+- digest: sha256:8e9137284bb89469bae7b25ba412864e5396a6a2082990942912cccec33edf94
+  name: ghcr.io/sudhanshu5439/sentinel-notifier
+  newName: ghcr.io/sudhanshu5439/sentinel-notifier
+- digest: sha256:b914dada49c2f3610f9c9480e7740dceb9c69cbb1ce23b5601f3d36c652bd404
+  name: ghcr.io/sudhanshu5439/sentinel-order-api
+  newName: ghcr.io/sudhanshu5439/sentinel-order-api
+- digest: sha256:77f698cd3d5e3fc75b938cf4c18b04428952227efb6e478604b39c481ca347f0
+  name: ghcr.io/sudhanshu5439/sentinel-risk-engine
+  newName: ghcr.io/sudhanshu5439/sentinel-risk-engine
 patches:
-  - path: order-api-ha.yaml
+- path: order-api-ha.yaml
 configurations:
-  - kustomize-rollout-config.yaml
+- kustomize-rollout-config.yaml
 # Fault injection for chaos testing. 0 = healthy. `make canary-bad` raises FAULT_ERROR_RATE here.
 configMapGenerator:
-  - name: order-api-faults
-    literals:
-      - FAULT_ERROR_RATE=0
-      - FAULT_LATENCY_MS=0
+- literals:
+  - FAULT_ERROR_RATE=0
+  - FAULT_LATENCY_MS=0
+  name: order-api-faults
