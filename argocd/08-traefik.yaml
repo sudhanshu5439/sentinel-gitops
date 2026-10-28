@@ -44,6 +44,13 @@ spec:
         ingressClass:
           enabled: true
           isDefaultClass: true
+        providers:
+          kubernetesIngress:
+            # Write an address into each Ingress status: Argo CD only reports an Ingress Healthy
+            # once it has one. The ClusterIP Service has no LB address to copy, so publish the
+            # address users actually reach it on.
+            publishedService: { enabled: false }
+            ingressEndpoint: { ip: 127.0.0.1 }
         resources:
           requests: { cpu: 50m, memory: 64Mi }
           limits: { memory: 256Mi }
