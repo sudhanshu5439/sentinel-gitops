@@ -1,0 +1,25 @@
+# Hostnames for the platform UIs (Grafana, Alertmanager, Prometheus, Argo CD, Argo Rollouts),
+# kept together in one place so it is obvious what is exposed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-routes
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sudhanshu5439/sentinel-gitops
+    targetRevision: main
+    path: platform/ingress
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff: { duration: 15s, factor: 2, maxDuration: 3m }

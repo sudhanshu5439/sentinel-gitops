@@ -1,0 +1,84 @@
+# Laptop-only: these hosts resolve to 127.0.0.1 and are served by Traefik on port 8080.
+# Prometheus, Alertmanager and the Rollouts dashboard have NO login (and the Rollouts dashboard
+# can promote/abort). Acceptable on a laptop; on EKS they would sit behind SSO or stay private.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: grafana.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: grafana, port: { number: 80 } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: alertmanager.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: kps-alertmanager, port: { number: 9093 } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: prometheus.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: kps-prometheus, port: { number: 9090 } }
+---
+# argocd-server runs with server.insecure=true (TLS ends at the laptop boundary; see the
+# sentinel repo's deploy/argocd/server-insecure.yaml), so Traefik talks plain HTTP to it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: argocd.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: argocd-server, port: { number: 80 } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rollouts
+  namespace: argo-rollouts
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: rollouts.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: argo-rollouts-dashboard, port: { number: 3100 } }
