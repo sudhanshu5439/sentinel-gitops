@@ -37,7 +37,10 @@ spec:
           websecure:
             hostPort: 443
         service:
-          type: ClusterIP   # no cloud load balancer in kind; traffic arrives via the hostPorts
+          spec:
+            # kind has no cloud load balancer: a LoadBalancer Service stays <pending> forever and
+            # Argo CD reports the app as Progressing. Traffic arrives via the hostPorts anyway.
+            type: ClusterIP
         ingressClass:
           enabled: true
           isDefaultClass: true
