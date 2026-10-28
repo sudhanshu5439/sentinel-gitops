@@ -7,13 +7,13 @@ resources:
 - ../../base
 - pdb.yaml
 images:
-- digest: sha256:8e9137284bb89469bae7b25ba412864e5396a6a2082990942912cccec33edf94
+- digest: sha256:8017c8fa8a55d1423527f89cc9c42ee36a76016e30963c46627fe3e67428b793
   name: ghcr.io/sudhanshu5439/sentinel-notifier
   newName: ghcr.io/sudhanshu5439/sentinel-notifier
-- digest: sha256:b914dada49c2f3610f9c9480e7740dceb9c69cbb1ce23b5601f3d36c652bd404
+- digest: sha256:0c49439247f1d69c33d24c82af7b1608873048d0de7d3d51a2b3eddfe570c853
   name: ghcr.io/sudhanshu5439/sentinel-order-api
   newName: ghcr.io/sudhanshu5439/sentinel-order-api
-- digest: sha256:77f698cd3d5e3fc75b938cf4c18b04428952227efb6e478604b39c481ca347f0
+- digest: sha256:c2ad6c60b7825bbce10aa6df711f91806e4300a208519ec84b05de33de35f237
   name: ghcr.io/sudhanshu5439/sentinel-risk-engine
   newName: ghcr.io/sudhanshu5439/sentinel-risk-engine
 patches:
