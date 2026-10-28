@@ -28,6 +28,8 @@ done
 
 kubeconform -summary -ignore-missing-schemas argocd/*.yaml bootstrap/*.yaml
 kustomize build platform/policies >/dev/null
+echo "==> render + schema check: ingress routes"
+kustomize build platform/ingress | kubeconform -strict -summary
 
 for bad in tests/policies/bad-*.yaml; do
   echo "==> policies must deny: $bad"

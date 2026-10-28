@@ -1,0 +1,56 @@
+# Ingress controller: one front door for every UI, instead of a kubectl port-forward per tool.
+# kind maps laptop ports 8080/8443 to ports 80/443 on the control-plane node (the one labelled
+# ingress-ready=true), so Traefik binds those as hostPorts there: http://<tool>.localtest.me:8080
+# (*.localtest.me is public DNS that always answers 127.0.0.1).
+# Traefik rather than ingress-nginx: ingress-nginx was retired in March 2026 (no security fixes).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: default
+  source:
+    repoURL: https://traefik.github.io/charts
+    chart: traefik
+    targetRevision: 41.7.1   # Traefik v3.7.14
+    helm:
+      valuesObject:
+        deployment:
+          replicas: 1
+        # A hostPort can only be held by one pod per node. The default surge-first rollout would
+        # start the new pod next to the old one and it could never schedule: replace in place.
+        updateStrategy:
+          type: RollingUpdate
+          rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }
+        nodeSelector:
+          ingress-ready: "true"
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+        ports:
+          web:
+            hostPort: 80
+          websecure:
+            hostPort: 443
+        service:
+          type: ClusterIP   # no cloud load balancer in kind; traffic arrives via the hostPorts
+        ingressClass:
+          enabled: true
+          isDefaultClass: true
+        resources:
+          requests: { cpu: 50m, memory: 64Mi }
+          limits: { memory: 256Mi }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
