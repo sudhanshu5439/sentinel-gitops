@@ -403,7 +403,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (role) (rate(http_requests_total{namespace=\"$namespace\", handler=\"/orders\", method=\"POST\", status=\"5xx\"}[1m])) / sum by (role) (rate(http_requests_total{namespace=\"$namespace\", handler=\"/orders\", method=\"POST\"}[1m]))",
+              "expr": "(sum by (role) (rate(http_requests_total{namespace=\"$namespace\", handler=\"/orders\", method=\"POST\", status=\"5xx\"}[1m])) or 0 * sum by (role) (rate(http_requests_total{namespace=\"$namespace\", handler=\"/orders\", method=\"POST\"}[1m]))) / sum by (role) (rate(http_requests_total{namespace=\"$namespace\", handler=\"/orders\", method=\"POST\"}[1m]))",
               "legendFormat": "{{role}}"
             }
           ],

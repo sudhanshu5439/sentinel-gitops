@@ -85,6 +85,17 @@ spec:
           prometheusSpec:
             externalUrl: http://prometheus.localtest.me:8080   # alert generatorURL links
             retention: 2d
+            retentionSize: 1500MB   # hard cap, below the volume size
+            # Keep history across pod and laptop restarts: without a volume every restart wiped
+            # the TSDB, so "now vs 1h earlier" comparisons had no baseline.
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: standard
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 2Gi
             scrapeInterval: 15s
             # Pick up every PodMonitor/ServiceMonitor/rule, not only ones labelled for this release.
             podMonitorSelectorNilUsesHelmValues: false
