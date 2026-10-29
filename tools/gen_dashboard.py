@@ -55,7 +55,10 @@ panels = [
         (f'histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{{{ORD}}}[1m])))', "p99"),
     ], 12, 4, unit="s", thresholds=[{"color": "transparent", "value": None}, {"color": red, "value": 0.25}]),
     ts("Canary vs stable error rate", [(
-        f'sum by (role) (rate(http_requests_total{{{ORD}, status="5xx"}}[1m])) / sum by (role) (rate(http_requests_total{{{ORD}}}[1m]))',
+        # `or 0 * total`: a role with no 5xx at all must plot 0, not disappear.
+        f'(sum by (role) (rate(http_requests_total{{{ORD}, status="5xx"}}[1m]))'
+        f' or 0 * sum by (role) (rate(http_requests_total{{{ORD}}}[1m])))'
+        f' / sum by (role) (rate(http_requests_total{{{ORD}}}[1m]))',
         "{{role}}")], 0, 12, unit="percentunit",
         desc="During a rollout, canary and stable pods are labelled separately. This is what the canary analysis judges."),
     ts("Error budget burn rate", [

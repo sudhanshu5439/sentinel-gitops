@@ -17,21 +17,27 @@ spec:
       interval: 30s
       rules:
         # Error ratio = share of POST /orders answered with 5xx, over several windows.
+        # `or 0 * total`: with no 5xx series at all (a healthy service), the ratio must be 0, not
+        # missing. Missing data shows as "No data" in Grafana and as "unknown" to the assistant.
         - record: sentinel:order_api_errors:ratio_rate5m
           expr: |
-            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[5m]))
+            (sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[5m]))
+             or 0 * sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[5m])))
             / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[5m]))
         - record: sentinel:order_api_errors:ratio_rate30m
           expr: |
-            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[30m]))
+            (sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[30m]))
+             or 0 * sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[30m])))
             / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[30m]))
         - record: sentinel:order_api_errors:ratio_rate1h
           expr: |
-            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[1h]))
+            (sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[1h]))
+             or 0 * sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[1h])))
             / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[1h]))
         - record: sentinel:order_api_errors:ratio_rate6h
           expr: |
-            sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[6h]))
+            (sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST", status="5xx"}[6h]))
+             or 0 * sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[6h])))
             / sum by (namespace) (rate(http_requests_total{namespace=~"sentinel-(staging|prod)", handler="/orders", method="POST"}[6h]))
         # Slow ratio = share of POST /orders slower than 250 ms (histogram bucket le="0.25").
         - record: sentinel:order_api_slow:ratio_rate5m
