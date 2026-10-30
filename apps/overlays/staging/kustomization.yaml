@@ -26,6 +26,6 @@ generatorOptions:
     argocd.argoproj.io/sync-options: Prune=false
 configMapGenerator:
 - literals:
-  - FAULT_ERROR_RATE=0
+  - FAULT_ERROR_RATE=0.5
   - FAULT_LATENCY_MS=0
   name: order-api-faults
