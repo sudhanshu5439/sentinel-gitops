@@ -9,6 +9,6 @@ resources:
 - deployment.yaml
 # CI (sentinel repo, promote-assistant job) pins this to the digest it built, scanned and signed.
 images:
-- digest: sha256:0feae8e22b157fdf638078b152f48129668b296bc9de4f9a077c4bfdf8c5451f
+- digest: sha256:058590d1334b21a926d69925d2ed279886b0d6412b2f310836665f929d06900c
   name: ghcr.io/sudhanshu5439/sentinel-assistant
   newName: ghcr.io/sudhanshu5439/sentinel-assistant
