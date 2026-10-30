@@ -38,10 +38,12 @@ spec:
             # break-glass one is the optional `sentinel-assistant-switch` ConfigMap below, kept
             # out of Git so self-heal cannot revert it; re-read before every diagnosis.
             - { name: LLM_ENABLED, value: "true" }
-            # Step 8: the action policy runs and every decision is audited, but in dry-run it
-            # changes nothing. Going live is a reviewed commit here, never a runtime toggle.
-            - { name: ACTION_MODE, value: dry-run }
-            - { name: ALLOWED_NAMESPACES, value: "sentinel-staging,sentinel-prod" }
+            # Step 8: the action policy runs and every decision is audited. Going live is a
+            # reviewed commit here, never a runtime toggle (`make actions-off` stops it at once).
+            # Live in staging only: prod incidents are still diagnosed, decided and audited, but
+            # the blast-radius guard blocks any action there (and RBAC has no write in prod).
+            - { name: ACTION_MODE, value: live }
+            - { name: ALLOWED_NAMESPACES, value: sentinel-staging }
             - { name: PROD_NAMESPACES, value: sentinel-prod }
             - { name: ACTIONS_PER_HOUR, value: "3" }
             - { name: ACTION_COOLDOWN_MINUTES, value: "30" }
