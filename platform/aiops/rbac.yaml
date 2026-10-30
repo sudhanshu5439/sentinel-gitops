@@ -1,4 +1,5 @@
-# The assistant is read-only, and only where it investigates. Namespaced Roles, not a
+# The assistant reads only where it investigates, and writes in exactly one place (the
+# sentinel-assistant-act Role below). Namespaced Roles, not a
 # ClusterRole: an alert for any other namespace gets a 403, which the assistant reports as a
 # visible evidence gap instead of reading data it has no business seeing.
 # Only `list` is granted: every collector query is a list call. No Secrets, no pods/exec, no
@@ -67,6 +68,29 @@ metadata:
   name: sentinel-assistant-read
   namespace: sentinel-prod
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: sentinel-assistant-read }
+subjects: [{ kind: ServiceAccount, name: sentinel-assistant, namespace: aiops }]
+---
+# Step 8, the one write permission: abort the order-api canary in staging. `rollouts/status`
+# only, so it can set status.abort and nothing else: not the spec, image, replicas or traffic
+# weights. One named rollout, one namespace. Prod gets no write permission until staging has a
+# measured record (and ALLOWED_NAMESPACES in deployment.yaml keeps prod out of reach anyway).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sentinel-assistant-act
+  namespace: sentinel-staging
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [rollouts/status]
+    resourceNames: [order-api]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sentinel-assistant-act
+  namespace: sentinel-staging
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: sentinel-assistant-act }
 subjects: [{ kind: ServiceAccount, name: sentinel-assistant, namespace: aiops }]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
