@@ -30,6 +30,12 @@ kubeconform -summary -ignore-missing-schemas argocd/*.yaml bootstrap/*.yaml
 kustomize build platform/policies >/dev/null
 echo "==> render + schema check: ingress routes"
 kustomize build platform/ingress | kubeconform -strict -summary
+echo "==> render + schema check + policies: aiops (sentinel-assistant)"
+kustomize build platform/aiops > "$tmp/aiops.yaml"
+kubeconform -strict -summary "$tmp/aiops.yaml"
+sed "s/sentinel-prod/aiops/" "$VALUES" > "$tmp/values-aiops.yaml"
+# shellcheck disable=SC2086
+kyverno apply $POLICIES --resource "$tmp/aiops.yaml" --values-file "$tmp/values-aiops.yaml"
 
 for bad in tests/policies/bad-*.yaml; do
   echo "==> policies must deny: $bad"

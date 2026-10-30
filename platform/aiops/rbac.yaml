@@ -1,0 +1,78 @@
+# The assistant is read-only, and only where it investigates. Namespaced Roles, not a
+# ClusterRole: an alert for any other namespace gets a 403, which the assistant reports as a
+# visible evidence gap instead of reading data it has no business seeing.
+# Only `list` is granted: every collector query is a list call. No Secrets, no pods/exec, no
+# write verbs. Limitation: RBAC cannot grant "ConfigMap metadata only"; the assistant asks for
+# metadata (PartialObjectMetadataList), but the permission itself would allow reading values.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sentinel-assistant
+  namespace: aiops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sentinel-assistant-read
+  namespace: sentinel-staging
+rules:
+  - apiGroups: [""]
+    resources: [events, configmaps]
+    verbs: [list]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [list]
+  - apiGroups: [argoproj.io]
+    resources: [rollouts, analysisruns]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sentinel-assistant-read
+  namespace: sentinel-prod
+rules:   # same as staging
+  - apiGroups: [""]
+    resources: [events, configmaps]
+    verbs: [list]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [list]
+  - apiGroups: [argoproj.io]
+    resources: [rollouts, analysisruns]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sentinel-assistant-read
+  namespace: argocd
+rules:
+  # Sync history = what changed when. Read as CRs: no Argo CD login, no API token.
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sentinel-assistant-read
+  namespace: sentinel-staging
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: sentinel-assistant-read }
+subjects: [{ kind: ServiceAccount, name: sentinel-assistant, namespace: aiops }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sentinel-assistant-read
+  namespace: sentinel-prod
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: sentinel-assistant-read }
+subjects: [{ kind: ServiceAccount, name: sentinel-assistant, namespace: aiops }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sentinel-assistant-read
+  namespace: argocd
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: sentinel-assistant-read }
+subjects: [{ kind: ServiceAccount, name: sentinel-assistant, namespace: aiops }]
