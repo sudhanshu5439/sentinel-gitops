@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No top-level `namespace:` here: the RBAC objects deliberately live in the namespaces the
+# assistant reads (staging, prod, argocd), and that field would move them all into aiops.
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - deployment.yaml
+# CI (sentinel repo, promote-assistant job) pins this to the digest it built, scanned and signed.
+images:
+  - name: ghcr.io/sudhanshu5439/sentinel-assistant
