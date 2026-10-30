@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
 - namespace.yaml
 - rbac.yaml
+- audit-db.yaml
 - deployment.yaml
 # CI (sentinel repo, promote-assistant job) pins this to the digest it built, scanned and signed.
 images:

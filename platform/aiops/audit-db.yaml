@@ -1,0 +1,171 @@
+# Audit log for the incident assistant (Step 8): every diagnosis and every decision, append-only.
+#
+# Append-only is enforced by the database, not by the assistant's good behaviour:
+#   - the assistant's role may INSERT and SELECT on audit_events, nothing else
+#   - a trigger rejects UPDATE, DELETE and TRUNCATE, even for the table owner
+#   - Grafana gets a SELECT-only role
+# Passwords live in the `audit-db` Secret (created by `make aiops-secrets` in the sentinel repo),
+# never in Git. The init script runs once, on an empty data directory.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audit-db-init
+  namespace: aiops
+data:
+  01-schema.sh: |
+    set -eu
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+      -v assistant_pw="$ASSISTANT_PASSWORD" -v grafana_pw="$GRAFANA_PASSWORD" <<'SQL'
+    CREATE ROLE assistant LOGIN PASSWORD :'assistant_pw';
+    CREATE ROLE grafana_reader LOGIN PASSWORD :'grafana_pw';
+    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+
+    CREATE TABLE audit_events (
+      id            bigserial PRIMARY KEY,
+      at            timestamptz NOT NULL DEFAULT now(),
+      incident_id   text NOT NULL,
+      namespace     text NOT NULL,
+      service       text NOT NULL,
+      event         text NOT NULL,   -- diagnosis | decision | approval | action
+      category      text,
+      confidence    text,
+      action        text,
+      tier          smallint,
+      status        text,
+      prompt_sha256 text,
+      pack_sha256   text,
+      cost_usd      numeric(10, 6),
+      payload       jsonb NOT NULL
+    );
+    CREATE INDEX audit_events_incident ON audit_events (incident_id);
+    CREATE INDEX audit_events_at ON audit_events (at);
+
+    CREATE FUNCTION audit_events_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      RAISE EXCEPTION 'audit_events is append-only: % refused', TG_OP;
+    END $$;
+    CREATE TRIGGER audit_events_no_change BEFORE UPDATE OR DELETE ON audit_events
+      FOR EACH ROW EXECUTE FUNCTION audit_events_append_only();
+    CREATE TRIGGER audit_events_no_truncate BEFORE TRUNCATE ON audit_events
+      FOR EACH STATEMENT EXECUTE FUNCTION audit_events_append_only();
+
+    REVOKE ALL ON audit_events FROM PUBLIC;
+    GRANT INSERT, SELECT ON audit_events TO assistant;
+    GRANT USAGE ON SEQUENCE audit_events_id_seq TO assistant;
+    GRANT SELECT ON audit_events TO grafana_reader;
+    SQL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-db
+  namespace: aiops
+spec:
+  selector: { app: audit-db }
+  ports:
+    - { name: postgres, port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: audit-db
+  namespace: aiops
+  labels: { app: audit-db }
+spec:
+  serviceName: audit-db
+  replicas: 1
+  selector:
+    matchLabels: { app: audit-db }
+  template:
+    metadata:
+      labels: { app: audit-db }
+    spec:
+      automountServiceAccountToken: false   # a database has no business with the API server
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70      # the "postgres" user in the alpine image
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: postgres
+          # Pinned to the digest staging already runs: same bytes, nothing new to pull.
+          image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+          # A tiny write-mostly table: the defaults (128 MB shared buffers, 100 connections)
+          # would cost more memory than the whole assistant.
+          args: ["-c", "shared_buffers=16MB", "-c", "max_connections=20"]
+          ports:
+            - { containerPort: 5432 }
+          env:
+            - { name: POSTGRES_DB, value: audit }
+            - { name: POSTGRES_USER, value: audit_admin }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: audit-db, key: POSTGRES_PASSWORD } }
+            - name: ASSISTANT_PASSWORD
+              valueFrom: { secretKeyRef: { name: audit-db, key: ASSISTANT_PASSWORD } }
+            - name: GRAFANA_PASSWORD
+              valueFrom: { secretKeyRef: { name: audit-db, key: GRAFANA_PASSWORD } }
+          startupProbe:
+            exec: { command: ["pg_isready", "-U", "audit_admin", "-d", "audit"] }
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "audit_admin", "-d", "audit"] }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "audit_admin", "-d", "audit"] }
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 20m, memory: 48Mi }
+            limits: { memory: 192Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d, readOnly: true }
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: { sizeLimit: 16Mi }
+        - name: init
+          configMap: { name: audit-db-init }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+# Only the assistant (and Grafana, for the audit dashboard) may open a connection. kindnet
+# enforces NetworkPolicy; verified with a throwaway pod in docs/evidence (sentinel repo).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: audit-db
+  namespace: aiops
+spec:
+  podSelector:
+    matchLabels: { app: audit-db }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: sentinel-assistant }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: grafana }
+      ports:
+        - { protocol: TCP, port: 5432 }
