@@ -70,7 +70,30 @@ spec:
             resources:
               requests: { cpu: 10m, memory: 32Mi }
               limits: { memory: 128Mi }
-          # Routing stays on the built-in 'null' receiver for now; the AIOps step adds a webhook.
+          # SLO alerts from the Sentinel apps go to the incident assistant; everything else stays
+          # on 'null'. Grouping by (namespace, service) matches how the assistant groups alerts
+          # into incidents, so one storm arrives as one webhook delivery.
+          config:
+            global:
+              resolve_timeout: 5m
+            route:
+              receiver: "null"
+              group_by: [namespace, service]
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 12h
+              routes:
+                - receiver: sentinel-assistant
+                  matchers:
+                    - slo=~".+"
+                    - namespace=~"sentinel-(staging|prod)"
+            receivers:
+              - name: "null"
+              - name: sentinel-assistant
+                webhook_configs:
+                  - url: http://sentinel-assistant.aiops.svc:8000/webhook/alertmanager
+                    send_resolved: true   # the assistant marks the incident resolved
+                    max_alerts: 50
         nodeExporter:
           enabled: false
         kubeEtcd: { enabled: false }
