@@ -3,9 +3,11 @@ kind: Kustomization
 # No top-level `namespace:` here: the RBAC objects deliberately live in the namespaces the
 # assistant reads (staging, prod, argocd), and that field would move them all into aiops.
 resources:
-  - namespace.yaml
-  - rbac.yaml
-  - deployment.yaml
+- namespace.yaml
+- rbac.yaml
+- deployment.yaml
 # CI (sentinel repo, promote-assistant job) pins this to the digest it built, scanned and signed.
 images:
-  - name: ghcr.io/sudhanshu5439/sentinel-assistant
+- digest: sha256:f9db8d2f9d1097d8f40cb060c4212174ea06e1996fc636c3cb616945fea58685
+  name: ghcr.io/sudhanshu5439/sentinel-assistant
+  newName: ghcr.io/sudhanshu5439/sentinel-assistant
