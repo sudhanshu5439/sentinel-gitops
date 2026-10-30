@@ -34,7 +34,9 @@ spec:
             - { name: ARGOCD_NAMESPACE, value: argocd }
             - { name: LLM_MODEL, value: claude-haiku-5-5 }
             - { name: LLM_BUDGET_USD, value: "0.02" }
-            # Kill switch: set to "false" and sync to stop every LLM call (evidence + Slack go on).
+            # Two off switches. This one is audited and slow (a Git commit + restart). The
+            # break-glass one is the optional `sentinel-assistant-switch` ConfigMap below, kept
+            # out of Git so self-heal cannot revert it; re-read before every diagnosis.
             - { name: LLM_ENABLED, value: "true" }
           envFrom:
             - secretRef: { name: sentinel-assistant }
@@ -54,9 +56,14 @@ spec:
             capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: tmp, mountPath: /tmp }
+            - { name: kill-switch, mountPath: /etc/assistant/switch, readOnly: true }
       volumes:
         - name: tmp
           emptyDir: { sizeLimit: 16Mi }
+        - name: kill-switch
+          configMap:
+            name: sentinel-assistant-switch   # created by `make aiops-off` (sentinel repo)
+            optional: true                    # absent = switch not engaged
 ---
 apiVersion: v1
 kind: Service
