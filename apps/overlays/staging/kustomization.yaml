@@ -27,5 +27,5 @@ generatorOptions:
 configMapGenerator:
 - literals:
   - FAULT_ERROR_RATE=0
-  - FAULT_LATENCY_MS=0
+  - FAULT_LATENCY_MS=500
   name: order-api-faults
