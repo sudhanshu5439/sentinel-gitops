@@ -21,6 +21,7 @@ argocd/                      one Argo CD Application per component, ordered by s
   09-ingress-routes            hostnames for the UIs (platform/ingress)
   10-sentinel-staging          the apps, staging overlay
   11-sentinel-prod             the apps, prod overlay
+  12-aiops                     the incident assistant, its audit DB and its permissions
 platform/                    plain manifests for the apps above
 apps/base/                   the Sentinel services, environment-agnostic
 apps/overlays/staging/       auto-promoted by CI on every merge to main
@@ -69,7 +70,23 @@ Traefik serves every tool at `http://<name>.localtest.me:8080` (`*.localtest.me`
 127.0.0.1): `grafana`, `argocd`, `alertmanager`, `prometheus`, `rollouts`, plus the demo app's
 Swagger UI at `orders-staging` and `orders-prod` (`/docs`). Prometheus, Alertmanager and the
 Rollouts dashboard have no login, which is acceptable only because they are reachable from the
-laptop alone; on EKS they would sit behind SSO or stay private.
+laptop alone; anywhere shared they would sit behind SSO or stay private.
+
+## The incident assistant (`platform/aiops`)
+
+Alertmanager sends SLO alerts to `sentinel-assistant`, which diagnoses them with an LLM and posts
+to Slack (code: the `aiops/` folder of the sentinel repo). What this repo decides about it:
+
+- **Image:** pinned by digest by CI, signed by the same pipeline; Kyverno enforces it in `aiops`.
+- **Permissions:** `list` only, in the namespaces it investigates. One write, in staging only:
+  `patch` on `rollouts/status` for `order-api`, which can set `abort` and nothing else.
+- **Mode:** `ACTION_MODE` and `ALLOWED_NAMESPACES` in `deployment.yaml`. Going live, or adding
+  prod, is a reviewed commit here; the break-glass switches (`make aiops-off`, `make actions-off`
+  in the sentinel repo) are a ConfigMap deliberately kept out of Git so self-heal cannot undo them.
+- **Lasting fixes** are revert pull requests to this repo: a human merging one is the approval.
+- **Audit DB:** PostgreSQL, append-only (INSERT/SELECT role, a trigger refusing UPDATE, DELETE
+  and TRUNCATE), reachable only from the assistant and Grafana (NetworkPolicy). The
+  "Sentinel / Audit" Grafana dashboard reads it with a SELECT-only role.
 
 ## Lessons recorded here
 
@@ -80,5 +97,8 @@ laptop alone; on EKS they would sit behind SSO or stay private.
   `LoadBalancer <pending>` that kept Argo CD reporting Progressing. Check the rendered object.
 - **Argo CD health depends on status fields.** An Ingress stays Progressing until its status has
   an address, so Traefik publishes 127.0.0.1.
+- **Two PRs touching the same lines block each other.** The temporary evaluation window (#20)
+  and going live (#19) both edited the assistant's env list; #19 could not be merged until the
+  conflict was resolved on its branch.
 
 > Personal lab project. Not run in production; no client code or configuration.
