@@ -41,10 +41,12 @@ spec:
             # Step 9 evaluation only (revert after): runs follow each other within minutes, and
             # with the normal 15-min window each run would join the previous run's incident.
             - { name: GROUP_WINDOW_MINUTES, value: "2" }
-            # Step 8: the action policy runs and every decision is audited, but in dry-run it
-            # changes nothing. Going live is a reviewed commit here, never a runtime toggle.
-            - { name: ACTION_MODE, value: dry-run }
-            - { name: ALLOWED_NAMESPACES, value: "sentinel-staging,sentinel-prod" }
+            # Step 8: the action policy runs and every decision is audited. Going live is a
+            # reviewed commit here, never a runtime toggle (`make actions-off` stops it at once).
+            # Live in staging only: prod incidents are still diagnosed, decided and audited, but
+            # the blast-radius guard blocks any action there (and RBAC has no write in prod).
+            - { name: ACTION_MODE, value: live }
+            - { name: ALLOWED_NAMESPACES, value: sentinel-staging }
             - { name: PROD_NAMESPACES, value: sentinel-prod }
             - { name: ACTIONS_PER_HOUR, value: "3" }
             - { name: ACTION_COOLDOWN_MINUTES, value: "30" }
