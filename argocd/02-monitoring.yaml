@@ -32,11 +32,17 @@ spec:
               root_url: http://grafana.localtest.me:8080   # served by Traefik (platform/ingress)
             plugins:
               # Unused core datasources (one comma-separated string, no spaces).
-              disable_plugins: "elasticsearch,grafana-postgresql-datasource,grafana-pyroscope-datasource,influxdb,jaeger,mssql,mysql,opentsdb,stackdriver,cloudwatch,graphite,zipkin,grafana-azure-monitor-datasource,parca,grafana-testdata-datasource"
+              # PostgreSQL is enabled (since Step 8): the assistant's audit log is read from it.
+              disable_plugins: "elasticsearch,grafana-pyroscope-datasource,influxdb,jaeger,mssql,mysql,opentsdb,stackdriver,cloudwatch,graphite,zipkin,grafana-azure-monitor-datasource,parca,grafana-testdata-datasource"
               preinstall_disabled: true   # no plugin downloads from the internet at boot
           resources:
             requests: { cpu: 100m, memory: 192Mi }
             limits: { memory: 512Mi }
+          # The audit DB's SELECT-only role. Secret created by `make aiops-secrets` (sentinel repo);
+          # optional, so Grafana still starts without it (the Audit datasource then fails to log in).
+          envValueFrom:
+            AUDIT_DB_PASSWORD:
+              secretKeyRef: { name: audit-db-grafana, key: password, optional: true }
           # Dashboards: any ConfigMap labelled grafana_dashboard=1 (see platform/observability).
           additionalDataSources:
             - name: Loki
@@ -63,6 +69,19 @@ spec:
                   spanEndTimeShift: "5m"
                 serviceMap:
                   datasourceUid: prometheus
+            # The assistant's append-only audit log (platform/aiops/audit-db.yaml). grafana_reader
+            # can only SELECT; the audit DB's NetworkPolicy admits Grafana's pods.
+            - name: Audit
+              uid: audit
+              type: grafana-postgresql-datasource
+              url: audit-db.aiops.svc:5432
+              user: grafana_reader
+              jsonData:
+                database: audit
+                sslmode: disable
+                postgresVersion: 1600
+              secureJsonData:
+                password: $AUDIT_DB_PASSWORD   # expanded by Grafana from its environment
         alertmanager:
           enabled: true
           alertmanagerSpec:

@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - slo-order-api.yaml
   - dashboard-sentinel.yaml
+  - dashboard-audit.yaml

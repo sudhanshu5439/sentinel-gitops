@@ -38,6 +38,9 @@ spec:
             # break-glass one is the optional `sentinel-assistant-switch` ConfigMap below, kept
             # out of Git so self-heal cannot revert it; re-read before every diagnosis.
             - { name: LLM_ENABLED, value: "true" }
+            # Step 9 evaluation only (revert after): runs follow each other within minutes, and
+            # with the normal 15-min window each run would join the previous run's incident.
+            - { name: GROUP_WINDOW_MINUTES, value: "2" }
             # Step 8: the action policy runs and every decision is audited. Going live is a
             # reviewed commit here, never a runtime toggle (`make actions-off` stops it at once).
             # Live in staging only: prod incidents are still diagnosed, decided and audited, but
