@@ -1,0 +1,66 @@
+# "Sentinel / Audit": every diagnosis and decision of the incident assistant, from its append-only
+# audit log (Step 8). Read through the SELECT-only grafana_reader role. Hand-written (small);
+# dashboard-sentinel.yaml is generated, this one is not.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-audit
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  sentinel-audit.json: |
+    {
+      "uid": "sentinel-audit",
+      "title": "Sentinel / Audit",
+      "tags": ["sentinel", "aiops"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "1m",
+      "time": { "from": "now-7d", "to": "now" },
+      "panels": [
+        {
+          "type": "stat", "title": "Incidents diagnosed", "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "audit" },
+          "targets": [{ "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+            "rawSql": "SELECT count(*) AS incidents FROM audit_events WHERE event = 'diagnosis' AND $__timeFilter(at)" }]
+        },
+        {
+          "type": "stat", "title": "LLM cost (USD)", "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "audit" },
+          "fieldConfig": { "defaults": { "decimals": 4, "unit": "currencyUSD" } },
+          "targets": [{ "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+            "rawSql": "SELECT coalesce(sum(cost_usd), 0) AS cost FROM audit_events WHERE event = 'diagnosis' AND $__timeFilter(at)" }]
+        },
+        {
+          "type": "stat", "title": "Actions executed", "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "audit" },
+          "targets": [{ "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+            "rawSql": "SELECT count(*) AS executed FROM audit_events WHERE event = 'action' AND status = 'executed' AND $__timeFilter(at)" }]
+        },
+        {
+          "type": "stat", "title": "Stopped by a guard", "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "audit" },
+          "targets": [{ "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+            "rawSql": "SELECT count(*) AS blocked FROM audit_events WHERE event = 'decision' AND status = 'blocked' AND $__timeFilter(at)" }]
+        },
+        {
+          "type": "barchart", "title": "Decisions by action and tier", "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "audit" },
+          "targets": [{ "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+            "rawSql": "SELECT action || ' (tier ' || tier || ')' AS decision, count(*) AS n FROM audit_events WHERE event = 'decision' AND $__timeFilter(at) GROUP BY 1 ORDER BY 2 DESC" }]
+        },
+        {
+          "type": "barchart", "title": "Diagnoses by category", "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "audit" },
+          "targets": [{ "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+            "rawSql": "SELECT coalesce(category, 'none (escalated or skipped)') AS category, count(*) AS n FROM audit_events WHERE event = 'diagnosis' AND $__timeFilter(at) GROUP BY 1 ORDER BY 2 DESC" }]
+        },
+        {
+          "type": "table", "title": "Audit log (newest first)", "gridPos": { "x": 0, "y": 12, "w": 24, "h": 12 },
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "audit" },
+          "targets": [{ "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+            "rawSql": "SELECT at AS \"time\", namespace, service, event, category, confidence, action, tier, status, payload->>'blocked_by' AS blocked_by, payload->>'result' AS result, left(prompt_sha256, 12) AS prompt_sha, cost_usd FROM audit_events WHERE $__timeFilter(at) ORDER BY id DESC LIMIT 200" }]
+        }
+      ]
+    }
